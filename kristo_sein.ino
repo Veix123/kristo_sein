@@ -1,7 +1,9 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-#define NUM_LEDS 9
+#define NUM_LEDS 9 
+#define RED_SW_PIN 45
+#define ANTLED_PIN 43
 const byte led_pins[] = {12, 11, 7, 6, 5, 10, 9, 13, 8}; // led pin numbers
 byte led_vals[NUM_LEDS]; // led intensity values
 int t = 0;
@@ -15,6 +17,10 @@ void setup() {
     pinMode(led_pins[i], OUTPUT);
   }
 
+  pinMode(RED_SW_PIN, INPUT);
+  digitalWrite(RED_SW_PIN, HIGH);       // turn on pullup resistors
+
+  pinMode(ANTLED_PIN, OUTPUT);
   // Initialize led pins to 0
   for (int i = 0; i < NUM_LEDS; i++)
     led_vals[i] = 0;
@@ -56,6 +62,9 @@ void loop() {
     lcd.setCursor(10, 1);
     lcd.print((float)t, 1);
   }
+
+  int val = digitalRead(RED_SW_PIN);   // read the input pin
+  digitalWrite(ANTLED_PIN, !val);  // sets the LED to the button's value
 
   delay(10);
 }

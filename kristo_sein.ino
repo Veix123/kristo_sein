@@ -7,10 +7,18 @@
 const byte led_pins[] = {12, 11, 7, 6, 5, 10, 9, 13, 8}; // led pin numbers
 byte led_vals[NUM_LEDS]; // led intensity values
 int t = 0;
+bool spinner_state = 0;
+unsigned int spinner_cnt = 0;
+unsigned int spinner_speed = 0;
+unsigned long current_time = millis();
+unsigned long prev_time = millis();
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void setup() {
+
+  Serial.begin(115200);
+  
   // Set led pins to output
   for (int i = 0; i < NUM_LEDS; i++)
   {
@@ -31,9 +39,7 @@ void setup() {
   lcd.setCursor(2, 0);
   lcd.print("Kristo sein!");
   lcd.setCursor(0, 1);
-  lcd.print("V1.0");
-  lcd.setCursor(8, 1);
-  lcd.print("t=");
+  lcd.print("Kiirus: ");
 }
 
 // This function updates all led intensities on the output pins.
@@ -45,26 +51,55 @@ void writeLeds()
 
 
 void loop() {
-
   // Set led intensities
   for (int i = 0; i < NUM_LEDS; i++)
   {
-    led_vals[i] = max(sin(0.01 * t - 0.2 * i) * 128 + 80, 0);
+    led_vals[i] = max(sin(0.01 * t - 0.2 * i) * 128 + 70, 0);
   }
 
-  ++t %= 620;
+  //++t %= 620; // increment t and keep it in range of 2*pi*100
   
   writeLeds();
 
   // Update t value on the lcd on every 10th iteration
-  if (t % 10 == 0)
+  if (t % 100 == 0)
   {
-    lcd.setCursor(10, 1);
-    lcd.print((float)t, 1);
+    if ((millis() - prev_time) > 1000)
+    {
+      spinner_speed = 0;
+    }
+    lcd.setCursor(8, 1);
+    lcd.print("    ");
+    lcd.setCursor(8, 1);
+    lcd.print((int)spinner_speed);
   }
+
+  t = spinner_cnt*10 % 620;
 
   int val = digitalRead(RED_SW_PIN);   // read the input pin
   digitalWrite(ANTLED_PIN, !val);  // sets the LED to the button's value
 
-  delay(10);
+
+  // Spinner speed detection
+  int spinner_val = analogRead(A0);
+  if (spinner_val > 250 and spinner_state == 0)
+  {
+    spinner_state = 1; // rising edge
+    spinner_cnt++;
+    
+    prev_time = current_time;
+    current_time = millis();
+    unsigned long dt = current_time - prev_time;
+
+    spinner_speed = 1000.0*60/3/dt;
+  }
+  
+  if (spinner_val < 150 and spinner_state == 1)
+  {
+    spinner_state = 0; // falling edge
+  }
+
+      Serial.println(spinner_val);
+
+ // delay(10);
 }

@@ -4,20 +4,27 @@
 #define NUM_LEDS 9 
 #define RED_SW_PIN 45
 #define ANTLED_PIN 43
+#define SPINNER_BUF_SIZE 1000
+#define LCD_REFRESH_RATE 1
 const byte led_pins[] = {12, 11, 7, 6, 5, 10, 9, 13, 8}; // led pin numbers
 byte led_vals[NUM_LEDS]; // led intensity values
 int t = 0;
 bool spinner_state = 0;
 unsigned int spinner_cnt = 0;
-unsigned int spinner_speed = 0;
+unsigned int spinner_rpm = 0;
+unsigned int spinner_thresh_hi = 300;
+unsigned int spinner_thresh_lo = 150;
+int spinner_buf[SPINNER_BUF_SIZE];
+int spinner_buf_idx =0;
 unsigned long current_time = millis();
 unsigned long prev_time = millis();
+unsigned long prev_lcd_update = millis();
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void setup() {
 
-  Serial.begin(115200);
+//  Serial.begin(115200);
   
   // Set led pins to output
   for (int i = 0; i < NUM_LEDS; i++)
@@ -37,9 +44,26 @@ void setup() {
   lcd.init();
   lcd.backlight();
   lcd.setCursor(2, 0);
-  lcd.print("Kristo sein!");
+  lcd.print("KRISTO SEIN!");
+  delay(500);
+  byte alien[8] = {
+    0b11111,
+    0b10101,
+    0b11111,
+    0b11111,
+    0b01110,
+    0b01010,
+    0b11011,
+    0b00000
+  };
+  lcd.createChar(0,alien);
   lcd.setCursor(0, 1);
-  lcd.print("Kiirus: ");
+  for(int i=0; i<16; i++)
+  {
+    lcd.write(byte(0));
+    delay(200);
+  }
+  delay(500);
 }
 
 // This function updates all led intensities on the output pins.
@@ -49,57 +73,83 @@ void writeLeds()
     analogWrite(led_pins[i], led_vals[i]);
 }
 
+void spinnerPulseDetect()
+{
+  // Spinner pulse detection
+  int spinner_val = analogRead(A0);
+  spinner_buf[spinner_buf_idx] = spinner_val;
+  ++spinner_buf_idx %= SPINNER_BUF_SIZE;
+
+  // Adjust hi and lo thresholds based on previous readings
+  unsigned int new_lo = 1024;
+  unsigned int new_hi = 0;
+  for (int i=0; i < SPINNER_BUF_SIZE; i++)
+  {
+    new_lo = min(new_lo, spinner_buf[i]);
+    new_hi = max(new_hi, spinner_buf[i]);
+  }
+  
+  if (new_hi - new_lo > 100) // have to have at least some signal to work with
+  {
+    spinner_thresh_lo = new_lo;
+    spinner_thresh_hi = new_hi;
+  }
+
+  int thresh_delta = spinner_thresh_hi - spinner_thresh_lo;
+  if (spinner_val > spinner_thresh_hi - thresh_delta * 0.3 and spinner_state == 0)
+  {
+    spinner_state = 1; // rising edge
+    spinner_cnt++;
+  }
+  
+  if (spinner_val < spinner_thresh_lo + thresh_delta * 0.3 and spinner_state == 1)
+  {
+    spinner_state = 0; // falling edge
+  }
+}
+
 
 void loop() {
+  prev_time = current_time;
+  current_time = millis();
+  
   // Set led intensities
   for (int i = 0; i < NUM_LEDS; i++)
   {
     led_vals[i] = max(sin(0.01 * t - 0.2 * i) * 128 + 70, 0);
   }
-
-  //++t %= 620; // increment t and keep it in range of 2*pi*100
-  
+  ++t %= 620; // increment t and keep it in range of 2*pi*100
   writeLeds();
-
-  // Update t value on the lcd on every 10th iteration
-  if (t % 100 == 0)
+  
+  if ((current_time - prev_lcd_update) > 1000.0/LCD_REFRESH_RATE)
   {
-    if ((millis() - prev_time) > 1000)
-    {
-      spinner_speed = 0;
-    }
+    // Calculate spinner RPM
+    spinner_rpm = 60/3*spinner_cnt*LCD_REFRESH_RATE;
+
+    // Update LCD display
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Min:");
+    lcd.setCursor(4, 0);
+    lcd.print(spinner_thresh_lo);
+    lcd.setCursor(8, 0);
+    lcd.print("Max:");
+    lcd.setCursor(12, 0);
+    lcd.print(spinner_thresh_hi);
+    lcd.setCursor(0, 1);
+    lcd.print("Kiirus: ");
     lcd.setCursor(8, 1);
-    lcd.print("    ");
-    lcd.setCursor(8, 1);
-    lcd.print((int)spinner_speed);
+    lcd.print((int)spinner_rpm);
+    
+    prev_lcd_update = current_time;
+    spinner_cnt=0;
   }
 
-  t = spinner_cnt*10 % 620;
-
+  // Drive antenna with the RED switch
   int val = digitalRead(RED_SW_PIN);   // read the input pin
   digitalWrite(ANTLED_PIN, !val);  // sets the LED to the button's value
 
-
-  // Spinner speed detection
-  int spinner_val = analogRead(A0);
-  if (spinner_val > 250 and spinner_state == 0)
-  {
-    spinner_state = 1; // rising edge
-    spinner_cnt++;
-    
-    prev_time = current_time;
-    current_time = millis();
-    unsigned long dt = current_time - prev_time;
-
-    spinner_speed = 1000.0*60/3/dt;
-  }
+  spinnerPulseDetect();
   
-  if (spinner_val < 150 and spinner_state == 1)
-  {
-    spinner_state = 0; // falling edge
-  }
-
-      Serial.println(spinner_val);
-
- // delay(10);
+  delay(1);
 }

@@ -64,6 +64,7 @@ void setup() {
     delay(200);
   }
   delay(500);
+  lcd.clear();
 }
 
 // This function updates all led intensities on the output pins.
@@ -89,7 +90,7 @@ void spinnerPulseDetect()
     new_hi = max(new_hi, spinner_buf[i]);
   }
   
-  if (new_hi - new_lo > 100) // have to have at least some signal to work with
+  if (new_hi - new_lo > 150) // have to have at least some signal to work with
   {
     spinner_thresh_lo = new_lo;
     spinner_thresh_hi = new_hi;
@@ -127,19 +128,13 @@ void loop() {
     spinner_rpm = 60/3*spinner_cnt*LCD_REFRESH_RATE;
 
     // Update LCD display
-    lcd.clear();
+    char buf[16];
+    sprintf(buf,"Lo: %03d Hi: %03d",spinner_thresh_lo, spinner_thresh_hi);
     lcd.setCursor(0, 0);
-    lcd.print("Min:");
-    lcd.setCursor(4, 0);
-    lcd.print(spinner_thresh_lo);
-    lcd.setCursor(8, 0);
-    lcd.print("Max:");
-    lcd.setCursor(12, 0);
-    lcd.print(spinner_thresh_hi);
-    lcd.setCursor(0, 1);
-    lcd.print("Kiirus: ");
-    lcd.setCursor(8, 1);
-    lcd.print((int)spinner_rpm);
+    lcd.print(buf);
+    sprintf(buf,"Kiirus: %04d",spinner_rpm);
+    lcd.setCursor(0,1);
+    lcd.print(buf);
     
     prev_lcd_update = current_time;
     spinner_cnt=0;
